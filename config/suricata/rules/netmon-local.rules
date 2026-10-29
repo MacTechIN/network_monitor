@@ -1,0 +1,3 @@
+# netmon 로컬/테스트 룰 (sid 9000000~9099999). drop/reject 액션 금지(IDS 전용).
+# 파이프라인 검증용: 모든 DNS 질의에 알림을 낸다.
+alert dns any any -> any any (msg:"NETMON LOCAL test dns query"; sid:9000001; rev:1;)

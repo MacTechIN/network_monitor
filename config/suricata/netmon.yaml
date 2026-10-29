@@ -1,0 +1,88 @@
+%YAML 1.1
+---
+# network_monitor Suricata 구성 (M1/P1.2). 자립형 compact 설정.
+# IDS 전용: drop/reject 액션을 쓰지 않는다. EVE JSON + Community ID 로 출력한다.
+
+vars:
+  address-groups:
+    HOME_NET: "[192.168.45.0/24]"
+    EXTERNAL_NET: "!$HOME_NET"
+    HTTP_SERVERS: "$HOME_NET"
+    SMTP_SERVERS: "$HOME_NET"
+    SQL_SERVERS: "$HOME_NET"
+    DNS_SERVERS: "$HOME_NET"
+    TELNET_SERVERS: "$HOME_NET"
+    AIM_SERVERS: "$EXTERNAL_NET"
+    DC_SERVERS: "$HOME_NET"
+    DNP3_SERVER: "$HOME_NET"
+    DNP3_CLIENT: "$HOME_NET"
+    MODBUS_CLIENT: "$HOME_NET"
+    MODBUS_SERVER: "$HOME_NET"
+    ENIP_CLIENT: "$HOME_NET"
+    ENIP_SERVER: "$HOME_NET"
+  port-groups:
+    HTTP_PORTS: "80"
+    SHELLCODE_PORTS: "!80"
+    ORACLE_PORTS: 1521
+    SSH_PORTS: 22
+    DNP3_PORTS: 20000
+    MODBUS_PORTS: 502
+    FILE_DATA_PORTS: "[$HTTP_PORTS,110,143]"
+    FTP_PORTS: 21
+    GENEVE_PORTS: 6081
+    VXLAN_PORTS: 4789
+    TEREDO_PORTS: 3544
+
+default-log-dir: /var/log/suricata/
+
+stats:
+  enabled: no
+
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      community-id: true
+      community-id-seed: 0
+      types:
+        - alert
+        - flow
+        - dns
+        - tls
+        - http
+        - anomaly
+
+logging:
+  default-log-level: notice
+  outputs:
+    - console:
+        enabled: yes
+
+af-packet:
+  - interface: eth0
+    cluster-id: 99
+    cluster-type: cluster_flow
+    defrag: yes
+    # 게이트웨이 모드 재시도 시 NAT 이후 중복 캡처 제외 (정의서 가시성). 수동 모드에선 무해.
+    bpf-filter: "net 192.168.45.0/24 and not host 192.168.45.162"
+
+app-layer:
+  protocols:
+    tls:
+      enabled: yes
+    http:
+      enabled: yes
+    dns:
+      tcp:
+        enabled: yes
+      udp:
+        enabled: yes
+
+classification-file: /etc/suricata/classification.config
+reference-config-file: /etc/suricata/reference.config
+
+default-rule-path: /var/lib/suricata/rules
+rule-files:
+  - suricata.rules
+  - netmon-local.rules
