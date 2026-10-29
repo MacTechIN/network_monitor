@@ -1,0 +1,47 @@
+[project]
+name = "netmon"
+version = "0.0.1"
+description = "Passive home/SOHO network security sensor for Raspberry Pi 5 (detect-only IDS)."
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "TBD" }
+authors = [{ name = "sam" }]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "ruff",
+  "mypy",
+  "pytest",
+  "pytest-asyncio",
+  "hypothesis",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["netmon*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["netmon", "tests"]
+# scripts/gateway/* 는 별도 세션의 독립 운영 진단 스크립트이며 netmon 패키지가 아니다.
+extend-exclude = ["scripts/gateway"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unused_configs = true
+files = ["netmon", "tests"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"
+asyncio_default_fixture_loop_scope = "function"
