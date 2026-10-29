@@ -6,7 +6,9 @@ readme = "README.md"
 requires-python = ">=3.13"
 license = { text = "TBD" }
 authors = [{ name = "sam" }]
-dependencies = []
+dependencies = [
+  "pyyaml",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -15,6 +17,7 @@ dev = [
   "pytest",
   "pytest-asyncio",
   "hypothesis",
+  "types-pyyaml",
 ]
 
 [build-system]

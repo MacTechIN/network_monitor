@@ -1,0 +1,38 @@
+# network_monitor 설정 예시 (config/netmon.example.yaml)
+# 실제 운영 시 netmon.yaml 로 복사해 쓴다. 하드 제약(정의서 §4·§8)이 기본값에 반영되어 있다.
+
+# [필수] 이 센서가 소유·관리하는 네트워크에서만 동작함을 확인. true 가 아니면 기동을 거부한다.
+monitoring_notice_acknowledged: false
+
+capture:
+  interface: eth0
+  visibility_mode: passive          # passive | gateway (ADR-0001). 스푸핑 모드는 존재하지 않는다.
+  bpf: "net 192.168.45.0/24 and not host 192.168.45.162"
+
+active_scan:
+  enabled: false                    # 보수적 기본값: 능동 스캔(arp-scan/nmap) OFF
+  tools: []
+
+storage:
+  payload_storage: false            # 보수적 기본값: 페이로드 저장 OFF (알림 유발 PCAP 조각 링버퍼만)
+  base_dir: /var/lib/netmon
+  overall_cap_gb: 50
+
+external_transmission:
+  enabled: false                    # 보수적 기본값: 외부 전송 OFF
+
+threat_intel:
+  abusech_auth_key: ""              # 비우면 Feodo/SSLBL/Spamhaus/misp-warninglists 폴백 (FR-11)
+
+geoip:
+  provider: iptoasn_dbip            # iptoasn_dbip(기본) | maxmind(사용자 키 opt-in). ADR-0002 예정
+
+llm:
+  provider: local                   # local(llama.cpp) | cloud(opt-in). 서술 전용, 탐지 비개입. ADR-0003 예정
+  pseudonymize: true                # 외부 전송 시 내부 IP/MAC/호스트명 가명화
+
+dashboard:
+  bind: tailscale                   # localhost | tailscale 만 허용. 인터넷 노출 금지.
+
+alerts:
+  channels: []                      # Apprise URL 목록. 기본 없음.
