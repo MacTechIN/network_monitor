@@ -8,6 +8,7 @@ license = { text = "TBD" }
 authors = [{ name = "sam" }]
 dependencies = [
   "pyyaml",
+  "scapy",
 ]
 
 [project.optional-dependencies]

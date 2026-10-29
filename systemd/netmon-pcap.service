@@ -1,0 +1,29 @@
+[Unit]
+Description=netmon PCAP ring buffer (OPT-IN; full-packet short-term buffer for FR-3 snippets)
+# 기본 비활성. 전체 패킷 단기 보관은 민감하므로 운영자가 명시적으로 켠다(보수적 기본값).
+# 링버퍼는 용량 상한으로 순환하며, 영구 저장은 알림 유발 조각(netmon.notify.pcap_extract)뿐이다.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=netmon
+Group=netmon
+AmbientCapabilities=CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_RAW
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_PACKET
+RestrictNamespaces=true
+LockPersonality=true
+ReadWritePaths=/var/lib/netmon
+ExecStartPre=/bin/mkdir -p /var/lib/netmon/pcap
+# -C 50MB/파일, -W 20 파일 순환 => 약 1GB 상한. BPF 는 설정과 동일.
+ExecStart=/usr/bin/tcpdump -i eth0 -n -s 0 -w /var/lib/netmon/pcap/ring.pcap -C 50 -W 20 net 192.168.45.0/24 and not host 192.168.45.162
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
