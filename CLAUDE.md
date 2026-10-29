@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `network_monitor` is a home / small-office **network security sensor** running on a Raspberry Pi 5 (aarch64, Debian 13 trixie, kernel 6.18, NVMe boot). It passively captures LAN traffic on `eth0`, detects known threats (signatures) and unknown threats (per-device behavioral baselines), and explains findings in human-readable reports and alerts.
 
-**As of 2026-10-29 the project is in the definition stage (M0). There is no code, no build, no tests.** The only artifacts are `README.md` and `doc/01_project_definition.md`. The definition doc is the source of truth for scope, requirements (FR-1…FR-27), architecture, stack, data model, milestones and open questions. Read it before proposing or writing anything. Project documentation is written in Korean; keep new docs in Korean unless asked otherwise.
+**As of 2026-10-29 the project is in the definition stage (M0). There is no code, no build, no tests.** The only artifacts are `README.md` and `doc/01_project_definition.md`. The definition doc (v0.2) is the source of truth for scope, requirements (FR-1…FR-34), architecture, stack, data model, milestones and open questions. Read it before proposing or writing anything. Project documentation is written in Korean; keep new docs in Korean unless asked otherwise.
 
 There are no build / lint / test commands yet. When code is added, update this section with the real commands (the plan is Python 3.13 + `pytest`, with detection regression tests driven by replaying public malware PCAPs via `tcpreplay`).
 
@@ -31,15 +31,18 @@ The Pi's `eth0` sits on an ordinary switch port, so promiscuous mode sees only b
 Four layers in one Python process tree plus external engines (doc §9):
 
 1. **Capture / engines** – Suricata 7 (apt, ET Open rules, EVE JSON output) is the signature engine; Zeek is optional/phase 2. A Python passive discoverer watches ARP/DHCP/mDNS/SSDP/LLDP; opt-in active scanning uses `arp-scan`/`nmap`.
-2. **Processing (Python)** – ingest EVE/Zeek logs → normalize → enrich (GeoIP/ASN/threat-intel/OUI) → baseline learning & anomaly detection → correlate alerts into incidents → score severity (5 levels) → generate a 5-part narrative (what / which device / to where / why risky / what to do).
-3. **Storage** – SQLite for config/devices/alerts/incidents; Parquet + DuckDB for flow analytics; PCAP snippet directory as a size-capped ring buffer. Retention targets: flows 90 d, alerts 1 y, PCAP 30 d, 50 GB cap.
+2. **Processing (Python)** – ingest EVE/Zeek logs → normalize → enrich (GeoIP/ASN/threat-intel/OUI) → **time-series aggregation (1 m / 5 m / 1 h buckets per device/destination/protocol)** → baseline learning & anomaly detection → correlate alerts into incidents → score severity (5 levels) → generate a 5-part narrative (what / which device / to where / why risky / what to do).
+   A separate **batch learning pipeline** (doc §6.8, FR-28…FR-34) runs off the stored time series: feature extraction → join user/signature labels → periodic retraining (default nightly, nice 19, capped at 30 min / 1.5 GB, paused above 70 °C) → evaluation → promote or reject. Models are versioned with metrics and can be rolled back; a model that scores worse than the active one is never auto-promoted.
+3. **Storage** – SQLite for config/devices/alerts/incidents and the model registry; Parquet (partitioned by date and bucket resolution) + DuckDB for flows, time-series rollups and training datasets; versioned model artifact directory; PCAP snippet directory as a size-capped ring buffer. Retention targets: flows 90 d, alerts 1 y, PCAP 30 d, tiered time series (1 m 30 d / 5 m 180 d / 1 h 2 y), datasets + models ≤ 10 GB, 50 GB overall cap.
 4. **Presentation** – FastAPI backend, SPA dashboard (SvelteKit vs React undecided, ECharts for charts), daily/weekly Markdown/HTML reports, alert dispatcher (Telegram first, then email, webhook).
 
-**Rationale to preserve:** the project deliberately does *not* build its own detection engine. Differentiation is (1) single-Pi integration and unattended operation, (2) per-device baseline anomaly detection, and (3) plain-language explanatory reports. Keep effort on those three, not on reimplementing Suricata/Zeek.
+**Rationale to preserve:** the project deliberately does *not* build its own detection engine. Differentiation is (1) single-Pi integration and unattended operation, (2) per-device baseline anomaly detection that keeps learning from accumulated time-series data, and (3) plain-language explanatory reports. Keep effort on those three, not on reimplementing Suricata/Zeek.
+
+**Data-flow rule:** the real-time path (capture → detect → alert) and the batch path (aggregate → features → train) meet only at the storage layer. Everything that detects, reports, or learns reads the same time-series store, and batch work must never slow the real-time path. Learning stays CPU-only and small (scikit-learn, river, statsmodels, pandas/polars); no deep-learning frameworks in phase 1. Dataset/model export is manual and off by default, with optional IP/MAC pseudonymization.
 
 Deployment is systemd units + an install script (bash/Ansible). Docker is explicitly excluded for phase 1 because of AF_PACKET performance and capability complexity.
 
-Core entities (doc §11): `Device`, `Flow`, `Alert`, `Incident`, `Baseline`, `Suppression`. Every anomaly alert must carry its score *and* its evidence (explainability, FR-15); every suppression must leave an audit trail (FR-23).
+Core entities (doc §11): `Device`, `Flow`, `Alert`, `Incident`, `Baseline`, `Suppression`, plus learning entities `TimeSeriesBucket`, `TrainingSample`, `Model`, `Label`. Every anomaly alert must carry its score *and* its evidence (explainability, FR-15); every suppression must leave an audit trail (FR-23); every training sample must record its feature-schema version and source buckets so it can be reproduced (FR-30), and synthetic/replayed traffic must be flagged as such (FR-31).
 
 ## Planned repository layout (doc §16)
 
@@ -47,9 +50,10 @@ Core entities (doc §11): `Device`, `Flow`, `Alert`, `Incident`, `Baseline`, `Su
 doc/            01_project_definition.md, 02_architecture.md (before M1), 03_detection_catalog.md, adr/
 config/         netmon.example.yaml, suricata/ overlays + custom rules
 scripts/        install.sh, replay_pcap.sh
-netmon/         Python package: ingest/ discovery/ enrich/ detect/ correlate/ notify/ report/ api/ storage/
+netmon/         Python package: ingest/ discovery/ enrich/ timeseries/ detect/ learn/ correlate/ notify/ report/ api/ storage/
 web/            dashboard frontend
-systemd/        unit files
+systemd/        unit files (incl. retraining timer)
+data/           runtime-generated, git-ignored: parquet/ models/ pcap/
 tests/          pytest suites; tests/pcaps/ for public sample captures
 ```
 
@@ -57,7 +61,7 @@ When creating these, follow this layout rather than inventing a new one. Archite
 
 ## Milestones
 
-M0 definition (now) → M1 sensor up (Suricata + EVE→SQLite ingest + systemd) → M2 asset discovery → M3 dashboard v1 + Telegram → M4 enrichment & correlation → M5 behavioral detection & suppression → M6 reports & unattended ops → M7 optional Zeek/IPS review. Each has explicit done-criteria in doc §12; check them before declaring a milestone complete.
+M0 definition (now) → M1 sensor up (Suricata + EVE→SQLite ingest + flow→Parquet 1-min buckets + systemd) → M2 asset discovery → M3 dashboard v1 + Telegram → M4 enrichment & correlation → M4.5 time-series rollups, tiered retention, dataset extractor → M5 behavioral detection, suppression, label capture → M6 reports & unattended ops → M6.5 retraining pipeline with model registry → M7 optional Zeek/IPS review. Each has explicit done-criteria in doc §12; check them before declaring a milestone complete.
 
 ## Host environment (verified 2026-10-29)
 
@@ -66,4 +70,4 @@ Not yet installed: `suricata`, `zeek`, `arp-scan`, `nmap`, `tcpreplay` — M1 in
 
 ## Open questions (doc §15)
 
-Managed switch model, alert-channel priority beyond Telegram, final retention/disk numbers, whether Zeek is in phase 1, SvelteKit vs React, and how household/office members are notified of monitoring. Don't silently resolve these in code; raise them or record a decision in `doc/adr/`.
+Managed switch model, alert-channel priority beyond Telegram, final retention/disk numbers, whether Zeek is in phase 1, SvelteKit vs React, how household/office members are notified of monitoring, the concrete feature schema v1 and bucket sizes, per-device vs per-device-type models, and pseudonymization level for exports. Don't silently resolve these in code; raise them or record a decision in `doc/adr/`.
