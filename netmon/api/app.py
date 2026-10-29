@@ -15,11 +15,15 @@ import sqlite3
 from pathlib import Path
 
 from fastapi import FastAPI, Query
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from netmon.storage.db import connect, init_db
 
 __all__ = ["Alert", "Device", "Incident", "create_app"]
+
+# 기본 정적 번들 위치: 저장소 루트의 web/build (SvelteKit adapter-static, ADR-0002).
+DEFAULT_WEB_BUILD = Path(__file__).resolve().parents[2] / "web" / "build"
 
 
 class Device(BaseModel):
@@ -68,7 +72,7 @@ def _rows(path: str, sql: str, params: tuple[object, ...]) -> list[sqlite3.Row]:
         conn.close()
 
 
-def create_app(db_path: Path | str) -> FastAPI:
+def create_app(db_path: Path | str, web_build: Path | str | None = DEFAULT_WEB_BUILD) -> FastAPI:
     app = FastAPI(title="netmon", version="0.0.1")
     path = str(db_path)
 
@@ -106,5 +110,13 @@ def create_app(db_path: Path | str) -> FastAPI:
             (limit,),
         )
         return [dict(r) for r in rows]
+
+    # SPA 정적 번들을 루트에 마운트한다(있을 때만). API 라우트가 먼저 등록되어 우선하고,
+    # 나머지 경로는 SvelteKit 빌드가 처리한다(SPA fallback=index.html). 빌드가 없으면
+    # API 전용으로 동작한다(개발·테스트 환경).
+    if web_build is not None:
+        build_dir = Path(web_build)
+        if (build_dir / "index.html").is_file():
+            app.mount("/", StaticFiles(directory=build_dir, html=True), name="web")
 
     return app
