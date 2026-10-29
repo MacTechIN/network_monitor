@@ -58,3 +58,43 @@ def test_api_healthz_and_devices(tmp_path: Path) -> None:
     assert len(devices) == 1
     assert devices[0]["mac"] == "3c:22:fb:00:11:22"
     assert devices[0]["label"] == "tv"
+
+
+def test_api_alerts_and_incidents(tmp_path: Path) -> None:
+    db = tmp_path / "netmon.db"
+    conn = connect(db)
+    init_db(conn)
+    conn.execute(
+        "INSERT INTO alerts (ts, signature, severity, src_ip, dest_ip) VALUES (?,?,?,?,?)",
+        ("2026-10-30T00:00:00+00:00", "ET TEST rule", 2, "192.168.45.30", "203.0.113.5"),
+    )
+    conn.execute(
+        "INSERT INTO incidents (created_ts, severity, title, status, device_key) "
+        "VALUES (?,?,?,?,?)",
+        ("2026-10-30T00:05:00+00:00", 3, "의심 비컨", "open", "mac:3c:22:fb:00:11:22"),
+    )
+    conn.commit()
+    conn.close()
+
+    client = TestClient(create_app(db))
+
+    alerts = client.get("/alerts").json()
+    assert len(alerts) == 1
+    assert alerts[0]["signature"] == "ET TEST rule"
+    assert alerts[0]["severity"] == 2
+
+    incidents = client.get("/incidents").json()
+    assert len(incidents) == 1
+    assert incidents[0]["title"] == "의심 비컨"
+    assert incidents[0]["status"] == "open"
+
+    # limit 경계: 상한 초과는 422
+    assert client.get("/alerts", params={"limit": 5000}).status_code == 422
+
+
+def test_api_empty_tables_return_empty_lists(tmp_path: Path) -> None:
+    db = tmp_path / "netmon.db"
+    client = TestClient(create_app(db))  # DB 파일은 첫 조회 시 생성됨
+    assert client.get("/alerts").json() == []
+    assert client.get("/incidents").json() == []
+    assert client.get("/devices").json() == []

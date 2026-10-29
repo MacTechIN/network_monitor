@@ -57,6 +57,17 @@ CREATE TABLE IF NOT EXISTS devices (
     first_seen   TEXT NOT NULL,
     last_seen    TEXT NOT NULL
 );
+
+-- 사건(incident): 상관 엔진(M4/P4.4)이 알림을 묶어 채운다. 여기서는 API 골격(P3.1)이
+-- 조회할 수 있도록 선언만 해 둔다(비어 있어도 /incidents 가 동작).
+CREATE TABLE IF NOT EXISTS incidents (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_ts  TEXT    NOT NULL,
+    severity    INTEGER,
+    title       TEXT,
+    status      TEXT    NOT NULL DEFAULT 'open',
+    device_key  TEXT
+);
 """
 
 
