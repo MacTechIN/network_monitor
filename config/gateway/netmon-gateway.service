@@ -1,0 +1,14 @@
+[Unit]
+Description=netmon: Pi as LAN gateway (forwarding + NAT)
+After=network-online.target nftables.service tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/sysctl -q -p /etc/sysctl.d/90-netmon-gateway.conf
+ExecStart=/usr/sbin/nft -f /etc/netmon/gateway.nft
+ExecStop=/usr/sbin/nft delete table inet netmon_gateway
+
+[Install]
+WantedBy=multi-user.target

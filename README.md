@@ -6,5 +6,6 @@ Raspberry Pi 5의 LAN 포트로 주변 네트워크 트래픽을 수집·분석�
 
 - 상태: **정의 단계** (2026-10-29). 아직 코드 없음.
 - 시작 문서: [doc/01_project_definition.md](doc/01_project_definition.md)
+- 기술 조사 라이브러리: [doc/tech_research.md](doc/tech_research.md) (오픈소스·AI 에이전트·MCP·데이터셋 조사와 채택 판정, 2026-10-30)
 
 이 시스템은 운영자가 소유하거나 관리 권한을 가진 네트워크에서만 사용합니다.

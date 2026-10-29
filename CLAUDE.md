@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `network_monitor` is a home / small-office **network security sensor** running on a Raspberry Pi 5 (aarch64, Debian 13 trixie, kernel 6.18, NVMe boot). It passively captures LAN traffic on `eth0`, detects known threats (signatures) and unknown threats (per-device behavioral baselines), and explains findings in human-readable reports and alerts.
 
-**As of 2026-10-29 the project is in the definition stage (M0). There is no code, no build, no tests.** The only artifacts are `README.md` and `doc/01_project_definition.md`. The definition doc (v0.2) is the source of truth for scope, requirements (FR-1…FR-34), architecture, stack, data model, milestones and open questions. Read it before proposing or writing anything. Project documentation is written in Korean; keep new docs in Korean unless asked otherwise.
+**As of 2026-10-29 the project is in the definition stage (M0). There is no code, no build, no tests.** The only artifacts are `README.md` and `doc/01_project_definition.md`. The definition doc (v0.2) is the source of truth for scope, requirements (FR-1…FR-34), architecture, stack, data model, milestones and open questions. Read it before proposing or writing anything. `doc/tech_research.md` is the technology library: every candidate tool, model, dataset, MCP server and reference, with adopt/defer/reject verdicts, license risks, and facts verified on this Pi (apt/pip availability). Check it before adding a dependency, and add a row (8 columns, no guessed values) when you evaluate a new one. Its section 6.2 lists pending amendments to the definition doc. Project documentation is written in Korean; keep new docs in Korean unless asked otherwise.
 
 There are no build / lint / test commands yet. When code is added, update this section with the real commands (the plan is Python 3.13 + `pytest`, with detection regression tests driven by replaying public malware PCAPs via `tcpreplay`).
 
@@ -24,7 +24,9 @@ These come from sections 4 and 8 of the definition doc and are non-negotiable de
 
 ## Key design decision: traffic visibility
 
-The Pi's `eth0` sits on an ordinary switch port, so promiscuous mode sees only broadcast/multicast (ARP, mDNS, DHCP, SSDP) and the Pi's own traffic. Decision (doc §5): **develop in passive mode (E) now, but architect for a SPAN/mirror port (A)** on a managed switch; inline bridge (B) is deferred to a possible IPS follow-up. Until mirror hardware exists, real-threat development and testing is done by replaying PCAPs, not by live capture.
+The Pi's `eth0` sits on an ordinary switch port, so promiscuous mode alone sees only broadcast/multicast and the Pi's own traffic. The ISP router (192.168.45.1, Boa web UI) offers no port mirroring and there is no second NIC, so **ADR-0001 (2026-10-30) adopts option F, "Pi gateway mode"**: the router's DHCP (or, if it can't set the gateway option, the Pi's own `dnsmasq` after the router's DHCP is switched off) hands clients the Pi (192.168.45.162, static) as default gateway and DNS; the Pi forwards with `nftables` masquerade back to the router and ICMP redirects disabled. Clients route through the Pi *explicitly* — this is not ARP spoofing. Files live in `config/gateway/` and `scripts/gateway/` (setup / enable-dhcp / verify / rollback). The nft table contains only forward-accept and masquerade rules; it must never gain drop rules (IDS-only constraint).
+
+Consequences to keep in mind: the Pi is now a single point of failure for internet access (1 h leases + `99_rollback.sh` are the mitigation), throughput through one NIC tops out around 450–500 Mbps, router port-forwarding/UPnP into the LAN breaks, and LAN↔LAN traffic is still invisible. Capture filters should use `net 192.168.45.0/24 and not host 192.168.45.162` to see the client-side leg with real client IPs once. A SPAN/mirror port (option A) on a managed switch remains the preferred upgrade for internal-traffic visibility; inline bridge (B) stays deferred.
 
 ## Intended architecture
 
@@ -47,7 +49,7 @@ Core entities (doc §11): `Device`, `Flow`, `Alert`, `Incident`, `Baseline`, `Su
 ## Planned repository layout (doc §16)
 
 ```
-doc/            01_project_definition.md, 02_architecture.md (before M1), 03_detection_catalog.md, adr/
+doc/            01_project_definition.md, tech_research.md, 02_architecture.md (before M1), 03_detection_catalog.md, adr/
 config/         netmon.example.yaml, suricata/ overlays + custom rules
 scripts/        install.sh, replay_pcap.sh
 netmon/         Python package: ingest/ discovery/ enrich/ timeseries/ detect/ learn/ correlate/ notify/ report/ api/ storage/
@@ -65,7 +67,7 @@ M0 definition (now) → M1 sensor up (Suricata + EVE→SQLite ingest + flow→Pa
 
 ## Host environment (verified 2026-10-29)
 
-Installed: Python 3.13.5, Node 24 / npm 11, Tailscale 1.104. Interfaces: `eth0` (up, the capture port), `wlan0` (down, out of scope), `tailscale0`.
+Installed: Python 3.13.5, Node 24 / npm 11, Tailscale 1.104, nftables. Host runs headless (`multi-user.target`, lightdm disabled) since 2026-10-29. Interfaces: `eth0` (up, the capture port), `wlan0` (down, out of scope), `tailscale0`.
 Not yet installed: `suricata`, `zeek`, `arp-scan`, `nmap`, `tcpreplay` — M1 install scripts must add them via apt.
 
 ## Open questions (doc §15)
