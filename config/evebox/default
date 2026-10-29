@@ -1,0 +1,4 @@
+# EveBox 서버 옵션 (/etc/default/evebox 로 설치). M1/P1.7.
+# SQLite 데이터스토어로 netmon EVE 를 읽고 localhost 에만 바인딩한다(인터넷 노출 금지).
+# 외부 접근은 Tailscale Serve 로만 노출한다(P3.5).
+EVEBOX_OPTS="--sqlite --input /var/lib/netmon/eve.json --host 127.0.0.1"
