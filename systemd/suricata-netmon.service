@@ -1,0 +1,33 @@
+[Unit]
+Description=netmon Suricata IDS (detect-only, EVE JSON)
+Documentation=file:///home/sam/workspace/network_monitor/doc/01_project_definition.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=netmon
+Group=netmon
+# 캡처에 필요한 최소 능력만. drop 규칙을 쓰지 않으므로 방화벽 권한은 없음.
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_PACKET AF_NETLINK
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+ReadWritePaths=/var/lib/netmon
+RuntimeDirectory=netmon
+ExecStart=/usr/bin/suricata -c /etc/suricata/netmon.yaml -i eth0 -l /var/lib/netmon --runmode workers
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

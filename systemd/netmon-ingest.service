@@ -1,0 +1,30 @@
+[Unit]
+Description=netmon EVE JSON -> SQLite ingester
+After=suricata-netmon.service
+Wants=suricata-netmon.service
+
+[Service]
+Type=simple
+User=netmon
+Group=netmon
+# 수집기는 어떤 능력도 필요 없음.
+CapabilityBoundingSet=
+AmbientCapabilities=
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+ReadWritePaths=/var/lib/netmon
+ExecStart=/opt/netmon/venv/bin/python -m netmon.ingest.tail --eve /var/lib/netmon/eve.json --db /var/lib/netmon/netmon.db
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
