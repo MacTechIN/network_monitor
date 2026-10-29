@@ -37,6 +37,9 @@ extend-exclude = ["scripts/gateway"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["netmon"]
+
 [tool.mypy]
 python_version = "3.13"
 strict = true
