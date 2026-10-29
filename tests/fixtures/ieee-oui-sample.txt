@@ -1,0 +1,4 @@
+# ieee-oui.txt 샘플 (테스트용)
+B827EB	Raspberry Pi Foundation
+3C22FB	Apple, Inc.
+8C1F64FA0	MA-S Example Vendor
