@@ -88,6 +88,12 @@ def test_api_alerts_and_incidents(tmp_path: Path) -> None:
     assert incidents[0]["title"] == "의심 비컨"
     assert incidents[0]["status"] == "open"
 
+    # 사건 상세
+    detail = client.get(f"/incidents/{incidents[0]['id']}")
+    assert detail.status_code == 200
+    assert detail.json()["device_key"] == "mac:3c:22:fb:00:11:22"
+    assert client.get("/incidents/99999").status_code == 404
+
     # limit 경계: 상한 초과는 422
     assert client.get("/alerts", params={"limit": 5000}).status_code == 422
 

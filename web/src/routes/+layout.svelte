@@ -53,4 +53,25 @@
   main {
     padding: 16px 0;
   }
+  :global(table) {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  :global(th),
+  :global(td) {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid #2a2f3a;
+  }
+  :global(th) {
+    color: #8a93a6;
+    font-weight: 600;
+  }
+  :global(.mono) {
+    font-family: ui-monospace, monospace;
+  }
+  :global(a) {
+    color: #9db4ff;
+  }
 </style>

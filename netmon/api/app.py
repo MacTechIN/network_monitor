@@ -14,13 +14,15 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from netmon.storage.db import connect, init_db
 
 __all__ = ["Alert", "Device", "Incident", "create_app"]
+
+_INCIDENT_COLS = "id, created_ts, severity, title, status, device_key"
 
 # 기본 정적 번들 위치: 저장소 루트의 web/build (SvelteKit adapter-static, ADR-0002).
 DEFAULT_WEB_BUILD = Path(__file__).resolve().parents[2] / "web" / "build"
@@ -105,11 +107,21 @@ def create_app(db_path: Path | str, web_build: Path | str | None = DEFAULT_WEB_B
     def list_incidents(limit: int = Query(default=100, ge=1, le=1000)) -> list[dict[str, object]]:
         rows = _rows(
             path,
-            "SELECT id, created_ts, severity, title, status, device_key "
-            "FROM incidents ORDER BY id DESC LIMIT ?",
+            f"SELECT {_INCIDENT_COLS} FROM incidents ORDER BY id DESC LIMIT ?",
             (limit,),
         )
         return [dict(r) for r in rows]
+
+    @app.get("/incidents/{incident_id}", response_model=Incident)
+    def get_incident(incident_id: int) -> dict[str, object]:
+        rows = _rows(
+            path,
+            f"SELECT {_INCIDENT_COLS} FROM incidents WHERE id = ?",
+            (incident_id,),
+        )
+        if not rows:
+            raise HTTPException(status_code=404, detail="incident not found")
+        return dict(rows[0])
 
     # SPA 정적 번들을 루트에 마운트한다(있을 때만). API 라우트가 먼저 등록되어 우선하고,
     # 나머지 경로는 SvelteKit 빌드가 처리한다(SPA fallback=index.html). 빌드가 없으면
