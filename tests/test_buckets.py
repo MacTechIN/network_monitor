@@ -7,10 +7,12 @@ from pathlib import Path
 from netmon.ingest.eve import ingest_lines
 from netmon.storage.db import connect, init_db
 from netmon.timeseries.buckets import (
+    Bucket,
     FlowInput,
     aggregate_flows,
     flows_from_db,
     read_buckets_parquet,
+    rollup_buckets,
     write_buckets_parquet,
 )
 
@@ -75,3 +77,24 @@ def test_end_to_end_from_ingested_flows(tmp_path: Path) -> None:
     # 적재된 바이트 합 == 픽스처 흐름 바이트 합
     expected = sum((f.bytes_toserver or 0) + (f.bytes_toclient or 0) for f in flows)
     assert int(frame["bytes"].sum()) == expected
+
+
+def test_rollup_1m_to_5m_and_1h() -> None:
+    minute = [
+        Bucket("2026-10-30T12:00:00+09:00", "A", "B", "TCP", 2, 10, 1000),
+        Bucket("2026-10-30T12:02:00+09:00", "A", "B", "TCP", 1, 5, 500),
+        Bucket("2026-10-30T12:07:00+09:00", "A", "B", "TCP", 3, 9, 900),
+    ]
+    five = rollup_buckets(minute, resolution_s=300)
+    # 12:00 과 12:02 는 같은 5분 버킷(12:00), 12:07 은 다른 5분 버킷(12:05)
+    assert len(five) == 2
+    assert five[0].bucket_start.startswith("2026-10-30T12:00:00")
+    assert five[0].flow_count == 3  # 2 + 1 (버킷 수가 아니라 흐름 수의 합)
+    assert five[0].bytes == 1500
+    # 합계 불변식: 롤업해도 총합 보존
+    assert sum(b.bytes for b in five) == sum(b.bytes for b in minute)
+
+    hour = rollup_buckets(minute, resolution_s=3600)
+    assert len(hour) == 1
+    assert hour[0].flow_count == 6
+    assert hour[0].bytes == sum(b.bytes for b in minute)

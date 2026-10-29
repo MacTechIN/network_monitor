@@ -21,6 +21,7 @@ __all__ = [
     "aggregate_flows",
     "flows_from_db",
     "read_buckets_parquet",
+    "rollup_buckets",
     "write_buckets_parquet",
 ]
 
@@ -69,6 +70,36 @@ def aggregate_flows(flows: Iterable[FlowInput], resolution_s: int = 60) -> list[
         counts[key] += 1
         pkts[key] += (flow.pkts_toserver or 0) + (flow.pkts_toclient or 0)
         nbytes[key] += (flow.bytes_toserver or 0) + (flow.bytes_toclient or 0)
+    return [
+        Bucket(
+            bucket_start=start,
+            src_ip=src,
+            dest_ip=dest,
+            proto=proto,
+            flow_count=counts[key],
+            pkts=pkts[key],
+            bytes=nbytes[key],
+        )
+        for key in sorted(counts, key=lambda k: (k[0], k[1] or "", k[2] or "", k[3] or ""))
+        for (start, src, dest, proto) in [key]
+    ]
+
+
+def rollup_buckets(buckets: Iterable[Bucket], resolution_s: int) -> list[Bucket]:
+    """1분 버킷을 더 거친 해상도(예: 300초=5분, 3600초=1시간)로 재집계한다.
+
+    상위 버킷의 ``flow_count`` 는 하위 버킷 개수가 아니라 하위 ``flow_count`` 의 합이다.
+    기기·목적지·프로토콜 키는 그대로 유지한다.
+    """
+    counts: dict[_Key, int] = defaultdict(int)
+    pkts: dict[_Key, int] = defaultdict(int)
+    nbytes: dict[_Key, int] = defaultdict(int)
+    for bucket in buckets:
+        start = _floor(bucket.bucket_start, resolution_s).isoformat()
+        key: _Key = (start, bucket.src_ip, bucket.dest_ip, bucket.proto)
+        counts[key] += bucket.flow_count
+        pkts[key] += bucket.pkts
+        nbytes[key] += bucket.bytes
     return [
         Bucket(
             bucket_start=start,
