@@ -9,6 +9,8 @@ authors = [{ name = "sam" }]
 dependencies = [
   "pyyaml",
   "scapy",
+  "fastapi",
+  "uvicorn",
 ]
 
 [project.optional-dependencies]
@@ -19,6 +21,7 @@ dev = [
   "pytest-asyncio",
   "hypothesis",
   "types-pyyaml",
+  "httpx",
 ]
 
 [build-system]

@@ -46,6 +46,17 @@ CREATE TABLE IF NOT EXISTS flows (
 
 CREATE INDEX IF NOT EXISTS idx_alerts_flow ON alerts(flow_id);
 CREATE INDEX IF NOT EXISTS idx_flows_flow ON flows(flow_id);
+
+CREATE TABLE IF NOT EXISTS devices (
+    key          TEXT PRIMARY KEY,
+    label        TEXT,
+    randomized   INTEGER NOT NULL DEFAULT 0,
+    mac          TEXT,
+    ip           TEXT,
+    vendor       TEXT,
+    first_seen   TEXT NOT NULL,
+    last_seen    TEXT NOT NULL
+);
 """
 
 
