@@ -1,0 +1,32 @@
+[Unit]
+Description=netmon dashboard API (FastAPI/uvicorn, localhost only)
+After=network.target
+
+[Service]
+Type=simple
+User=netmon
+Group=netmon
+# API 는 로컬 TCP 소켓만 연다. 공개 바인딩(0.0.0.0) 금지, Tailscale Serve 가 앞단(P3.5, CC4).
+Environment=NETMON_DB=/var/lib/netmon/netmon.db
+Environment=NETMON_WEB_BUILD=/opt/netmon/web/build
+CapabilityBoundingSet=
+AmbientCapabilities=
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+# 로컬 TCP(AF_INET/AF_INET6)와 UNIX 소켓만 허용.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+ReadWritePaths=/var/lib/netmon
+ExecStart=/opt/netmon/venv/bin/uvicorn --factory netmon.api.asgi:make_app --host 127.0.0.1 --port 8080 --workers 1
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
