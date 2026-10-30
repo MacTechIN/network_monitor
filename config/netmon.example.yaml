@@ -35,4 +35,15 @@ dashboard:
   bind: tailscale                   # localhost | tailscale 만 허용. 인터넷 노출 금지.
 
 alerts:
-  channels: []                      # Apprise URL 목록. 기본 없음.
+  channels: []                      # (추후) Apprise URL 목록. 다채널 통합용. 기본 없음.
+  telegram:
+    enabled: false                  # 기본 OFF. 토큰·chat_id 설정 후 켠다.
+    bot_token: ""                   # httpx 로 Bot API 직접 호출(python-telegram-bot GPL 미사용)
+    chat_id: ""
+  dedup_window_minutes: 60          # 같은 dedup 키 알림을 이 시간 내 중복 억제
+  min_priority: 1                   # 0=정보 1=낮음 2=높음 3=긴급. 미만은 발송 안 함
+  quiet_hours:
+    enabled: false
+    start_hour: 23                  # 로컬 시각 기준(자정 넘김 허용: start>end 이면 밤~새벽)
+    end_hour: 7
+    bypass_priority: 3              # 긴급(3)은 조용한 시간에도 발송
